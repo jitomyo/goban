@@ -503,46 +503,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
   animation:badgepop .4s cubic-bezier(.2,.8,.3,1) both;
 }
 @keyframes badgepop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:none}}
-
-/* ---- 稽古の継続（ストリーク）と休み札 ----
-   既存のトークンだけで組む。数字は明朝、補足はゴシック、
-   点灯は形勢・好手と同じ藍。朱（投了・アゲハマ）は使わない。 */
-.streak{display:flex;align-items:center;gap:12px}
-.streak-n{
-  font-family:var(--f-disp);font-weight:600;
-  font-size:1.85rem;line-height:1;
-  font-variant-numeric:tabular-nums;
-  color:var(--ink);
-}
-.streak-cc{display:flex;flex-direction:column;gap:2px;min-width:0}
-.streak-t{font-size:12px;letter-spacing:.08em;color:var(--ink-2);line-height:1.3}
-.streak-sub{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);line-height:1.3}
-.streak-frz{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.streak-frz-t{font-size:10px;letter-spacing:.16em;color:var(--ink-3);font-weight:700}
-.frz-pips{display:flex;gap:5px}
-.frz-pips i{
-  width:10px;height:10px;border-radius:50%;
-  border:1px solid var(--line);background:transparent;
-}
-.frz-pips i.on{background:var(--ai);border-color:var(--ai)}
-.streak-note{
-  margin:10px 0 0;
-  font-size:11.5px;line-height:1.65;
-  color:var(--ink-2);letter-spacing:.02em;
-}
-.streak-note[hidden]{display:none}
-.streak-hint{margin:8px 0 0;font-size:11px;line-height:1.6;color:var(--ink-3);letter-spacing:.02em}
-.streak-line{
-  margin:14px 0 0;padding-top:13px;
-  border-top:1px solid var(--hair);
-  display:flex;align-items:baseline;gap:9px;
-  font-size:12px;letter-spacing:.08em;color:var(--ink-3);
-}
-.streak-line[hidden]{display:none}
-.streak-line b{
-  font-family:var(--f-disp);font-weight:600;font-size:1.2rem;
-  color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.04em;
-}
 </style>
 </head>
 <body>
@@ -640,23 +600,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
         </div>
       </div>
 
-      <div class="sec">
-        <p class="lbl">稽古の記録</p>
-        <div class="streak">
-          <span class="streak-n" id="stk-n">—</span>
-          <span class="streak-cc">
-            <span class="streak-t" id="stk-t">今日の一局から</span>
-            <span class="streak-sub" id="stk-sub"></span>
-          </span>
-          <span class="streak-frz">
-            <span class="streak-frz-t">休み札</span>
-            <span class="frz-pips" id="stk-pips"></span>
-          </span>
-        </div>
-        <p class="streak-note" id="stk-note" hidden></p>
-        <p class="streak-hint">一局を終局まで打つか、アタリ碁のステージをクリアした日を数えます。休み札は7日ごとに1枚（最大2枚）たまり、1日あいたときに自動で使われます。</p>
-      </div>
-
       <div class="sec" style="border-bottom:none">
         <div class="note" id="note-main">
           <div><b>数え方</b>　自分の石＋自分だけで囲んだ地。白にコミ6目半。</div>
@@ -735,7 +678,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
     <p class="res-verdict" id="res-verdict">白の4目半勝ち</p>
     <div class="res-table" id="res-table"></div>
     <p class="res-foot" id="res-foot"></p>
-    <p class="streak-line" id="res-streak" hidden></p>
     <div class="sheet-actions">
       <button type="button" id="res-close">盤面を見る</button>
       <button type="button" id="res-new" class="primary">新しい対局</button>
@@ -754,7 +696,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
     </div>
     <p class="clr-lead" id="clr-lead">石を1つ取ったので勝ちです。</p>
     <p class="res-foot" id="clr-foot"></p>
-    <p class="streak-line" id="clr-streak" hidden></p>
     <div class="sheet-actions">
       <button type="button" id="clr-again">もう一度</button>
       <button type="button" id="clr-next" class="primary">次のステージへ</button>
@@ -949,7 +890,6 @@ function legalHere(s,i,color){
 
 function newGame(N,human,level,mode,stage){
   clearTimeout(aiTimer); thinking=false; anim=null; hover=-1;
-  streakEvent=null;
   G.N=N; G.human=human; G.level=level;
   G.mode=(mode==="atari")?"atari":"normal";
   G.stage=Math.max(1,Math.min(MAX_STAGE, stage||1));
@@ -1034,9 +974,6 @@ function endGame(kind, winner){
     G.result={kind:"resign", winner:winner, sc:sc};
   }else{
     G.result={kind:"count", winner:(sc.black>sc.white?BLACK:WHITE), sc:sc};
-    /* 「意味のある稽古」の1つめ：二手連続のパスで終局まで打ちきった一局。
-       投了は数えない。判定は既存の終局処理をそのまま使い、ここで数えるだけ。 */
-    if(playedStones()>=MIN_STONES) streakEvent=completePractice();
   }
   save(); render(); draw(); showResult();
 }
@@ -1054,9 +991,6 @@ function endAtari(kind, winner){
   G.result={kind:kind, winner:winner, goal:G.goal, stage:G.stage};
   if(winner===G.human && kind==="capture"){
     if(G.stage>atari.cleared) atari.cleared=G.stage;
-    /* 「意味のある稽古」の2つめ：アタリ碁のステージクリア。
-       既に到達済みのステージをもう一度クリアした場合も、稽古としては数える。 */
-    streakEvent=completePractice();
   }
   save(); render(); draw(); showClear();
 }
@@ -1072,7 +1006,6 @@ function undo(){
   }
   if(!popped) return;
   G.ended=false; G.result=null; anim=null;
-  streakEvent=null;
   hideResult(); hideClear();
   save(); render(); draw();
   toast(popped>1 ? popped+"手戻しました。" : "1手戻しました。");
@@ -1551,7 +1484,6 @@ function render(){
   renderModeText();
   renderLead();
   renderMission();
-  renderStreak();
 }
 
 function renderModeText(){
@@ -1660,7 +1592,6 @@ function showResult(){
   $("res-foot").textContent =
     "ダメ "+sc.dame+"点（どちらの地にもなりません）。"+
     (R.kind==="resign" ? "参考までに投了時点の目算を示しています。" : "死石の自動判定は行いません。");
-  renderStreakLine("res-streak");
   $("result").hidden=false;
 }
 function hideResult(){ $("result").hidden=true; }
@@ -1699,7 +1630,6 @@ function showClear(){
     $("clr-next").hidden=true;
     badge.hidden=true;
   }
-  renderStreakLine("clr-streak");
   $("clear").hidden=false;
   ($("clr-next").hidden?$("clr-again"):$("clr-next")).focus();
 }
@@ -1938,188 +1868,9 @@ function loadAtari(){
 }
 
 /* ============================================================
-   稽古の継続（ストリーク）と休み札
-   ------------------------------------------------------------
-   数えるのは「意味のある稽古を終えた日」だけ。completePractice() を呼ぶのは
-     ・endGame（通常対局を二手連続のパスで終局まで打ちきったとき）
-     ・endAtari（アタリ碁のステージをクリアしたとき）
-   の2か所だけで、終局・クリアの判定そのものは既存の処理をそのまま使う。
-   アプリを開いただけ、石を1つ置いただけでは数えない。
-   保存は専用キー（goban-streak-v1）。対局の保存データには一切触れない。
-   ============================================================ */
-var STREAK_STORE="goban-streak-v1";
-var FREEZE_CAP=2;         /* 休み札は2枚まで貯まる */
-var FREEZE_EVERY=7;       /* 7日ごとに1枚 */
-var FREEZE_LOG_CAP=12;
-var MIN_STONES=4;         /* 打たずにパスだけで終わらせた“空の一局”は数えない */
-var streak=null;
-var streakFrozen=false;   /* この起動で休み札を使ったか（静かに知らせるためだけ） */
-var streakEvent=null;     /* 直近の完了で継続がどうなったか。結果シートの1行に使う */
-
-/* 日付は「YYYY-MM-DD」の文字列で持つ。表示・記録はローカル日付、
-   日数の計算はUTCに直してから行うので、夏時間の影響を受けない。 */
-function dayKey(d){
-  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
-}
-function today(){ return dayKey(new Date()); }
-function dayTime(s){
-  if(typeof s!=="string") return null;
-  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if(!m) return null;
-  var y=+m[1], mo=+m[2], da=+m[3];
-  var t=Date.UTC(y,mo-1,da), d=new Date(t);
-  if(d.getUTCFullYear()!==y||d.getUTCMonth()!==mo-1||d.getUTCDate()!==da) return null;
-  return t;
-}
-function dayGap(a,b){
-  var ta=dayTime(a), tb=dayTime(b);
-  if(ta==null||tb==null) return null;
-  return Math.round((tb-ta)/86400000);
-}
-function dayAdd(s,n){
-  var t=dayTime(s);
-  if(t==null) return null;
-  var d=new Date(t+n*86400000);
-  return d.getUTCFullYear()+"-"+("0"+(d.getUTCMonth()+1)).slice(-2)+"-"+("0"+d.getUTCDate()).slice(-2);
-}
-
-function defaultStreak(){
-  return {lastCompletedDate:null, currentStreak:0, longestStreak:0,
-          freezeTokens:1, freezeLog:[], lastGrantDate:today()};
-}
-function loadStreak(){
-  var st=defaultStreak(), d=readStore(STREAK_STORE);
-  if(!d) return st;
-  if(dayTime(d.lastCompletedDate)!=null) st.lastCompletedDate=d.lastCompletedDate;
-  st.currentStreak=Math.max(0, d.currentStreak|0);
-  st.longestStreak=Math.max(st.currentStreak, d.longestStreak|0);
-  st.freezeTokens=Math.max(0, Math.min(FREEZE_CAP, d.freezeTokens|0));
-  if(Array.isArray(d.freezeLog)) st.freezeLog=d.freezeLog.slice(-FREEZE_LOG_CAP);
-  if(dayTime(d.lastGrantDate)!=null) st.lastGrantDate=d.lastGrantDate;
-  return st;
-}
-function saveStreak(){
-  if(!streak) return;
-  try{ localStorage.setItem(STREAK_STORE, JSON.stringify(streak)); }
-  catch(e){/* 保存できなくても対局は続けられる */}
-}
-function pushFreezeLog(d){
-  if(!d) return;
-  streak.freezeLog.push(d);
-  if(streak.freezeLog.length>FREEZE_LOG_CAP)
-    streak.freezeLog.splice(0, streak.freezeLog.length-FREEZE_LOG_CAP);
-}
-/* 最後に稽古した日の「翌日」を、すでに休み札で埋めてあるか */
-function isBridged(){
-  if(!streak.lastCompletedDate) return false;
-  var d=dayAdd(streak.lastCompletedDate,1);
-  return d!=null && streak.freezeLog.indexOf(d)>=0;
-}
-function resetStreak(){
-  /* longestStreak（最長記録）は残す。切れたことを責める表示はしない。 */
-  streak.currentStreak=0;
-  streak.lastCompletedDate=null;
-}
-/* 起動時と完了時に、今日までの経過を清算する。
-   ① 7日ごとの休み札の付与　② 1日だけのあきを休み札で埋める　③ それ以上なら数え直す
-   戻り値：このとき休み札を使ったか */
-function settleStreak(){
-  var t=today();
-  var since=dayGap(streak.lastGrantDate, t);
-  if(since==null || since<0){
-    streak.lastGrantDate=t;
-  }else if(since>=FREEZE_EVERY){
-    /* まとめて何週間か空けても、付与日を7日単位で進めるので不自然に増えない */
-    var weeks=Math.floor(since/FREEZE_EVERY);
-    streak.freezeTokens=Math.min(FREEZE_CAP, streak.freezeTokens+weeks);
-    streak.lastGrantDate=dayAdd(streak.lastGrantDate, weeks*FREEZE_EVERY)||t;
-  }
-  if(!streak.lastCompletedDate) return false;
-  var gap=dayGap(streak.lastCompletedDate, t);
-  if(gap==null){ resetStreak(); return false; }
-  if(gap<=1) return false;              /* 今日か昨日に稽古している＝継続中 */
-  if(gap===2){
-    if(isBridged()) return false;       /* この1日あきは、すでに埋めてある（何度開いても減らない） */
-    if(streak.freezeTokens>0){
-      streak.freezeTokens--;
-      pushFreezeLog(dayAdd(streak.lastCompletedDate,1));
-      return true;
-    }
-  }
-  resetStreak();                        /* 休み札がない、または2日以上あいた */
-  return false;
-}
-function initStreak(){
-  streak=loadStreak();
-  if(settleStreak()) streakFrozen=true;
-  saveStreak();
-}
-/* 実際に盤に置かれた石の数。パスだけで終局させた一局を除くために見る */
-function playedStones(){
-  var n=0;
-  for(var i=0;i<G.log.length;i++) if(G.log[i].i>=0) n++;
-  return n;
-}
-function completePractice(){
-  if(!streak) initStreak();
-  if(settleStreak()) streakFrozen=true;
-  var t=today();
-  var gap=streak.lastCompletedDate ? dayGap(streak.lastCompletedDate,t) : null;
-  if(gap!=null && gap<=0){
-    saveStreak();
-    return {counted:false, days:streak.currentStreak, best:false};  /* 今日はもう数えてある */
-  }
-  /* 昨日から続いているか、休み札で埋めた1日をはさんで続いていれば伸ばす */
-  var linked=(gap===1)||(gap===2 && isBridged());
-  streak.currentStreak = linked ? streak.currentStreak+1 : 1;
-  streak.lastCompletedDate=t;
-  var best=false;
-  if(streak.currentStreak>streak.longestStreak){
-    streak.longestStreak=streak.currentStreak;
-    best=(streak.currentStreak>1);
-  }
-  saveStreak();
-  return {counted:true, days:streak.currentStreak, best:best};
-}
-
-function renderStreak(){
-  if(!streak) return;
-  var n=streak.currentStreak, t=today();
-  $("stk-n").textContent = n>0 ? n : "—";
-  $("stk-t").textContent = n>0 ? "日目" : "今日の一局から";
-  var parts=[];
-  if(streak.lastCompletedDate===t) parts.push("今日は済");
-  if(streak.longestStreak>0) parts.push("最長 "+streak.longestStreak+"日");
-  $("stk-sub").textContent=parts.join("　");
-  var h="";
-  for(var k=0;k<FREEZE_CAP;k++) h+='<i class="'+(k<streak.freezeTokens?"on":"")+'"></i>';
-  $("stk-pips").innerHTML=h;
-  var note=$("stk-note");
-  if(streakFrozen){
-    note.hidden=false;
-    note.textContent="1日あいたので、休み札を1枚使って継続を保ちました。";
-  }else{
-    note.hidden=true;
-    note.textContent="";
-  }
-}
-/* 終局・ステージクリアのシートに1行だけ添える。
-   直前の完了で数えたときだけ出す（保存から復元しただけのときは出さない）。 */
-function renderStreakLine(id){
-  var el=$(id);
-  if(!streakEvent){ el.hidden=true; el.textContent=""; return; }
-  var tail = streakEvent.counted
-    ? ("日目"+(streakEvent.best?"　これまでで最長です":""))
-    : "日目（今日の分は記録済みです）";
-  el.hidden=false;
-  el.innerHTML='<span>稽古の継続</span><b>'+streakEvent.days+'</b><span>'+tail+'</span>';
-}
-
-/* ============================================================
    起動
    ============================================================ */
 function boot(){
-  initStreak();
   var ok=false;
   try{ ok=loadAtari(); }catch(e){ ok=false; }   /* 到達ステージの読み出しも兼ねる */
   if(!ok){
