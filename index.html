@@ -503,6 +503,12 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
   animation:badgepop .4s cubic-bezier(.2,.8,.3,1) both;
 }
 @keyframes badgepop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:none}}
+
+/* ---- 学習モード ---- */
+/* 説明文は .lead-note / .stage-hint と同じ調子の小さな本文。
+   hidden の非表示は、先頭の [hidden]{display:none!important} が既に効くので足さない。 */
+.lesson-text{font-size:12px;line-height:1.7;color:var(--ink-2);margin:0 0 10px;letter-spacing:.02em}
+.lesson-note{font-size:11.5px;line-height:1.7;color:var(--ink-3);margin:0 0 12px;letter-spacing:.02em}
 </style>
 </head>
 <body>
@@ -568,7 +574,17 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
         </div>
       </div>
 
-      <div class="sec">
+      <div class="sec" id="sec-lesson" hidden>
+        <p class="lbl" id="lesson-title">眼（二眼で生き）</p>
+        <p class="lesson-text" id="lesson-text"></p>
+        <p class="lesson-note" id="lesson-note" hidden></p>
+        <div class="ctrls">
+          <button type="button" id="lesson-next" class="primary" hidden>次へ</button>
+          <button type="button" id="lesson-exit" class="wide">レッスンを終える</button>
+        </div>
+      </div>
+
+      <div class="sec" id="sec-tally">
         <p class="lbl">アゲハマ</p>
         <div class="caps">
           <div class="cap">
@@ -586,12 +602,13 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
         </div>
       </div>
 
-      <div class="sec">
+      <div class="sec" id="sec-ctrls">
         <div class="ctrls">
           <button id="btn-pass" type="button">パス</button>
           <button id="btn-undo" type="button">待った</button>
           <button id="btn-resign" class="danger" type="button">投了</button>
           <button id="btn-new" class="primary" type="button">新しい対局</button>
+          <button id="btn-lesson" type="button" class="wide">学習</button>
           <button id="btn-territory" class="wide" type="button" aria-pressed="false">地の表示：オフ</button>
         </div>
         <div class="terr-legend" id="terr-legend" hidden>
@@ -700,6 +717,24 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
       <button type="button" id="clr-again">もう一度</button>
       <button type="button" id="clr-next" class="primary">次のステージへ</button>
       <button type="button" id="clr-normal" class="wide">通常対局に切り替える</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="lesson-menu" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="lesson-menu-title">
+    <h2 id="lesson-menu-title">学習</h2>
+    <p class="kicker">小さな盤で、ルールをひとつずつ試します</p>
+
+    <div class="field">
+      <p class="lbl">ルール・テクニック</p>
+      <div class="ctrls">
+        <button type="button" class="primary wide" id="lesson-start-eyes">眼（二眼で生き）</button>
+      </div>
+    </div>
+
+    <div class="sheet-actions">
+      <button type="button" class="wide" id="lesson-menu-close">とじる</button>
     </div>
   </div>
 </div>
@@ -856,8 +891,11 @@ var MAX_STAGE=3;
    0目は自分の地を埋めた手などで、中国ルールでは損ではないが手番を渡すだけの一手。 */
 var GOOD_MOVE=3.0, WEAK_MOVE=0.0;
 
+/* mode は "normal" / "atari" / "lesson" の3種類。
+   lessonId・lessonStep・lessonTargets は学習モードのときだけ使う（保存対象外）。 */
 var G={N:9, human:BLACK, level:"normal", mode:"normal", stage:1, goal:1,
-       hist:[], log:[], ended:false, result:null};
+       hist:[], log:[], ended:false, result:null,
+       lessonId:null, lessonStep:0, lessonTargets:null};
 var atari={cleared:0};           /* クリア済みの最高ステージ（localStorageに保存） */
 var atariSaved=null;             /* 中断中のアタリ碁（通常対局中も保持する） */
 var thinking=false, aiTimer=null, anim=null, hover=-1;
@@ -1420,6 +1458,7 @@ function pointAt(ev){
   return gy*G.N+gx;
 }
 canvas.addEventListener("click", function(ev){
+  if(G.mode==="lesson"){ handleLessonClick(pointAt(ev)); return; }
   if(G.ended) return toast("対局は終わりました。「新しい対局」からどうぞ。");
   if(thinking) return;
   if(cur().turn!==G.human) return;
@@ -1484,10 +1523,19 @@ function render(){
   renderModeText();
   renderLead();
   renderMission();
+  renderLesson();
 }
 
 function renderModeText(){
   var atariMode=(G.mode==="atari");
+  if(G.mode==="lesson"){
+    $("rule-note").innerHTML="学習モード<br>5路の練習盤";
+    $("note-main").innerHTML=
+      '<div><b>学習モード</b>　実際の対局ではありません。CPUは打ちません。</div>'+
+      '<div><b>打てる場所</b>　説明にある点だけが打てます。他の交点は反応しません。</div>'+
+      '<div><b>もどる</b>　「レッスンを終える」で、中断していた対局に戻ります。</div>';
+    return;
+  }
   $("rule-note").innerHTML = atariMode
     ? "アタリ碁（入門）<br>ステージ"+G.stage+"／"+G.goal+"子"
     : "中国ルール（石＋地）<br>コミ 6目半";
@@ -1564,6 +1612,122 @@ function renderMission(){
   for(var k=0;k<G.goal;k++) h+='<i class="'+(k<you?"on":"")+'"></i>';
   $("mis-pips").innerHTML=h;
 }
+
+/* ============================================================
+   学習モード（ルールをひとつずつ試す小さな練習）
+   対局とは別物。CPUは打たず、決められた点にだけ白を置いて結果を見る。
+   盤・状態・着手判定（G / G.hist / tryMove / group）は対局用のものを
+   そのまま使い回す。G.mode==="lesson" のあいだだけ、対局用のパネルと
+   操作ボタンを隠して学習パネルを出す（アタリ碁のときと同じやり方）。
+   save() は一度も呼ばないので、中断した対局はlocalStorageに残ったまま。
+   「レッスンを終える」は boot() を呼び直すだけで、その対局に戻れる。
+   ============================================================ */
+var LESSON_N=5;                  /* 学習用の練習盤は5路。SIZES に入れない＝保存対象外 */
+var LESSONS={
+  eyes:{
+    steps:[
+      /* 1/2：眼がひとつながりに2目だけ。順に埋められて取られてしまう形。 */
+      { black:[0,1,2,5,7,10,12,15,16,17],
+        white:[3,8,13,18,20,21,22],
+        targets:[6,11],
+        title:"眼（二眼で生き）・1/2",
+        text:"黒の石は、内側に2つ続いた空き(眼)を持っています。白のつもりで、その2つの点に順番に打ってみてください。" },
+      /* 2/2：眼が離れて2つ。どちらに打っても白が自殺手になり、永久に取れない形。 */
+      { black:[0,1,2,5,7,10,11,12,15,17,20,21,22],
+        white:[3,8,13,18,23],
+        targets:[6,16],
+        title:"眼（二眼で生き）・2/2",
+        text:"今度は、黒の石が2つの離れた眼を持っています。同じように、白のつもりでどちらかの眼に打ってみてください。" }
+    ]
+  }
+};
+
+function startLesson(id){
+  if(!LESSONS[id]) return;
+  clearTimeout(aiTimer); thinking=false;
+  G.mode="lesson"; G.lessonId=id; G.lessonStep=0;
+  loadLessonStep();
+  render(); draw();
+}
+function loadLessonStep(){
+  var step=LESSONS[G.lessonId].steps[G.lessonStep], n=LESSON_N*LESSON_N, k;
+  G.N=LESSON_N; buildNB(LESSON_N); scratch(n);
+  var b=new Int8Array(n);
+  for(k=0;k<step.black.length;k++) b[step.black[k]]=BLACK;
+  for(k=0;k<step.white.length;k++) b[step.white[k]]=WHITE;
+  var est=estimateLead(b,LESSON_N);
+  /* freshState() と同じ形。盤面だけ差し替え、手番は白で固定する
+     （学習者は対局で何色を持っていても、この練習では白のつもりで打つ）。
+     leadOk は false のまま＝目算も地の表示も出さない。 */
+  G.hist=[{b:b, turn:WHITE, capB:0, capW:0, passes:0, moveNo:0, last:-1, lastColor:0,
+           lead:est.lead, leadOk:false, d:0, dOk:false, good:false, ownerMap:est.ownerMap}];
+  G.log=[]; G.ended=false; G.result=null; anim=null; hover=-1;
+  G.lessonTargets=step.targets;
+  $("lesson-title").textContent=step.title;
+  $("lesson-text").textContent=step.text;
+  var note=$("lesson-note");
+  note.hidden=true; note.textContent="";
+  $("lesson-next").hidden=true;
+}
+function handleLessonClick(i){
+  if(i<0 || !G.lessonTargets || G.lessonTargets.indexOf(i)<0) return;
+  var s=cur();
+  if(s.b[i]!==EMPTY) return;
+  var r=tryMove(s.b,i,WHITE);
+  var note=$("lesson-note");
+  if(!r){
+    /* 自殺手＝眼のなかには打てない。二眼の生きを体感してもらう山場 */
+    note.hidden=false;
+    note.textContent="打てません。ここに白を置いても、白自身の呼吸点が0になるだけで、黒の石を取ることもできません（黒にはもう一方の眼がまだ残っているからです）。これが「眼」です。眼が2つあると、石は永久に取られません。";
+    draw();
+    return;
+  }
+  var est=estimateLead(r.b,G.N);
+  pushState({b:r.b, turn:WHITE, capB:s.capB, capW:s.capW+r.captured, passes:0,
+             moveNo:s.moveNo+1, last:i, lastColor:WHITE,
+             lead:est.lead, leadOk:false, d:0, dOk:false, good:false, ownerMap:est.ownerMap});
+  startAnim(i,WHITE);
+  note.hidden=false;
+  if(r.captured>0){
+    note.textContent="黒の石（"+r.captured+"個）がすべて取られました。ひとつながりの眼が1つだけでは、いずれこうして取られてしまいます。";
+    $("lesson-next").hidden=false;
+  }else{
+    note.textContent="打てました。まだ空きが残っているので、白は打てます。もう一方の点にも打ってみてください。";
+  }
+  draw();
+}
+/* 学習モードのあいだの表示切り替えを、この一箇所にまとめる。
+   （どのパネルを隠すかを renderLead / renderMission 側に散らかさない） */
+function renderLesson(){
+  var on=(G.mode==="lesson");
+  $("sec-lesson").hidden=!on;
+  if(on){
+    $("sec-lead").hidden=true;
+    $("sec-mission").hidden=true;
+    $("sec-tally").hidden=true;
+    $("sec-ctrls").hidden=true;
+    $("hint-size").textContent=G.N+"路盤・学習";
+    $("hint-act").textContent="説明にある点をタップ";
+    $("turn-note").textContent="白のつもりで打ってみましょう";
+  }else{
+    $("sec-tally").hidden=false;
+    $("sec-ctrls").hidden=false;
+  }
+}
+$("btn-lesson").addEventListener("click", function(){ $("lesson-menu").hidden=false; });
+$("lesson-menu-close").addEventListener("click", function(){ $("lesson-menu").hidden=true; });
+$("lesson-start-eyes").addEventListener("click", function(){
+  $("lesson-menu").hidden=true;
+  startLesson("eyes");
+});
+$("lesson-next").addEventListener("click", function(){
+  G.lessonStep=1;
+  loadLessonStep();
+  render(); draw();
+});
+/* 中断していた対局に戻る。lesson中は save() を呼んでいないので、
+   boot() が localStorage から元の対局をそのまま読み直してくれる。 */
+$("lesson-exit").addEventListener("click", function(){ boot(); });
 
 function fmtPts(d){
   var a=Math.abs(d), whole=Math.floor(a+1e-9), half=Math.abs(a-whole-0.5)<1e-9;
@@ -1750,6 +1914,7 @@ $("clr-normal").addEventListener("click", function(){
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape"){
     if(!$("setup").hidden) $("setup").hidden=true;
+    else if(!$("lesson-menu").hidden) $("lesson-menu").hidden=true;
     else if(!$("clear").hidden) hideClear();
     else if(!$("result").hidden) hideResult();
   }
