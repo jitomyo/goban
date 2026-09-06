@@ -282,37 +282,6 @@ h1{
 }
 .tally b{font-family:var(--f-disp);font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
 
-/* kifu */
-.kifu{
-  max-height:172px;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-  display:flex;flex-direction:column;
-  gap:1px;
-  font-size:12.5px;
-  padding-right:2px;
-}
-.kifu .row{
-  display:grid;
-  grid-template-columns:30px 15px 1fr;
-  align-items:center;
-  gap:8px;
-  padding:3px 4px;
-  border-radius:3px;
-}
-.kifu .row:nth-child(odd){background:var(--surface)}
-.kifu .row.cur{background:var(--ai-soft)}
-.kifu .no{
-  color:var(--ink-3);font-size:11px;
-  font-variant-numeric:tabular-nums;text-align:right;
-}
-.kifu .pt{
-  font-family:var(--f-disp);font-weight:600;letter-spacing:.09em;
-  font-variant-numeric:tabular-nums;
-}
-.kifu .pt.pass{font-family:var(--f-ui);font-weight:400;font-size:11.5px;color:var(--ink-2);letter-spacing:.06em}
-.kifu .take{margin-left:6px;font-size:10.5px;color:var(--shu);letter-spacing:.04em}
-.kifu-empty{font-size:12px;color:var(--ink-3);padding:6px 4px}
 
 /* buttons */
 .ctrls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
@@ -664,11 +633,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
           <span>手数 <b id="movecount">0</b></span>
           <span>CPUの強さ <b id="lvl-label">普通</b></span>
         </div>
-      </div>
-
-      <div class="sec">
-        <p class="lbl">棋譜</p>
-        <div class="kifu" id="kifu"><div class="kifu-empty">まだ着手はありません。</div></div>
       </div>
 
       <div class="sec">
@@ -1565,25 +1529,6 @@ function render(){
   $("btn-resign").disabled=G.ended;
   $("btn-undo").disabled=thinking||G.hist.length<2;
   updateTerritoryUI();
-
-  /* 棋譜 */
-  var k=$("kifu");
-  if(!G.log.length){ k.innerHTML='<div class="kifu-empty">まだ着手はありません。</div>'; }
-  else{
-    var html="", n=G.log.length;
-    for(var m=Math.max(0,n-80); m<n; m++){
-      var e=G.log[m];
-      html+='<div class="row'+(m===n-1?" cur":"")+'">'+
-        '<span class="no">'+e.no+'</span>'+
-        '<span class="st sm '+(e.c===BLACK?"b":"w")+'"></span>'+
-        (e.i<0 ? '<span class="pt pass">パス</span>'
-               : '<span class="pt">'+coordName(e.i,G.N)+
-                 (e.take? '<span class="take">'+e.take+'子</span>':'')+'</span>')+
-        '</div>';
-    }
-    k.innerHTML=html;
-    k.scrollTop=k.scrollHeight;
-  }
 
   renderModeText();
   renderLead();
