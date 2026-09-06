@@ -436,13 +436,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
   font-variant-numeric:tabular-nums;
 }
 .lead-side{font-size:10.5px;letter-spacing:.12em;color:var(--ink-3);white-space:nowrap}
-.spark{
-  display:block;width:100%;height:56px;
-  margin:9px 0 8px;
-  background:var(--surface);
-  border:1px solid var(--hair);
-  border-radius:4px;
-}
 .lead-move{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ink-2);letter-spacing:.06em}
 .lead-move .d{
   font-family:var(--f-disp);font-weight:600;font-size:1.05rem;
@@ -593,8 +586,6 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
           <span class="lead-now" id="lead-now">互角</span>
           <span class="lead-side" id="lead-side">コミ込み</span>
         </div>
-        <svg class="spark" id="spark" viewBox="0 0 260 56" preserveAspectRatio="none"
-             role="img" aria-label="目数差の推移"></svg>
         <div class="lead-move">
           <span id="lead-who">直前の手</span>
           <span class="d" id="lead-delta">—</span>
@@ -1421,6 +1412,33 @@ function draw(){
     }
     drawStone(q.cx,q.cy,rr,s.b[i]);
   }
+  /* アタリ（呼吸点が残り1つ）になっている自分の石に、朱の細い輪をそっと添える。
+     相手の石がアタリでも何も描かない。「ここが取れる」と教えるのではなく、
+     「自分が危ない」ことにだけ気づける、受け身の気づきにとどめる。
+     ホバーのたびに draw() が走るので連の走査は局面ごとに一度だけ行い、
+     その局面オブジェクトに覚えさせる（盤面が変われば別の局面になる）。 */
+  if(s._humanAtari===undefined){
+    var seen={}, atariList=[], gg, gk;
+    for(i=0;i<N*N;i++){
+      if(s.b[i]!==G.human || seen[i]) continue;
+      gg=group(s.b,i);
+      for(gk=0;gk<gg.stones.length;gk++){
+        seen[gg.stones[gk]]=true;
+        if(gg.libs===1) atariList.push(gg.stones[gk]);
+      }
+    }
+    s._humanAtari=atariList;
+  }
+  if(s._humanAtari.length){
+    ctx.save();
+    ctx.lineWidth=Math.max(1, geom.cell*0.04);
+    ctx.strokeStyle="rgba("+tokRgb("--shu")+",0.5)";
+    for(i=0;i<s._humanAtari.length;i++){
+      q=pt(s._humanAtari[i]%N,(s._humanAtari[i]/N)|0);
+      ctx.beginPath(); ctx.arc(q.cx,q.cy,r*1.10,0,TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
   /* 着手の波紋 */
   if(anim){
     var pp=(now-anim.t0)/340;
@@ -1596,98 +1614,6 @@ function renderLead(){
     }
     noteEl.textContent=note;
   }
-  renderSpark();
-}
-/* 目数差の推移（黒から見た目数差）。棋譜に記録した推定値をそのまま折れ線にする */
-function leadSeries(){
-  var start=0, i;
-  /* 目算が定まる前（片方しか石がない序盤）や、lead を持たない旧データは飛ばす */
-  for(i=0;i<G.log.length;i++) if(typeof G.log[i].lead!=="number") start=i+1;
-  var out=[-KOMI];                 /* 起点は互角（コミのみ） */
-  for(i=start;i<G.log.length;i++) out.push(G.log[i].lead);
-  return out;
-}
-/* 表示だけを滑らかにするための移動平均（推定値そのものは書き換えない） */
-function movingAverage(arr, half){
-  if(!half) return arr.slice();
-  var out=[], n=arr.length, i;
-  for(i=0;i<n;i++){
-    var lo=Math.max(0,i-half), hi=Math.min(n-1,i+half), sum=0, cnt=0;
-    for(var k=lo;k<=hi;k++){ sum+=arr[k]; cnt++; }
-    out.push(sum/cnt);
-  }
-  return out;
-}
-/* Catmull-Romスプラインをベジェ曲線に変換し、折れ線をなめらかな曲線として描く */
-function smoothPath(xs, ys){
-  var n=xs.length, i;
-  if(n<2) return "";
-  if(n===2) return "M "+xs[0].toFixed(1)+" "+ys[0].toFixed(1)+" L "+xs[1].toFixed(1)+" "+ys[1].toFixed(1);
-  var d="M "+xs[0].toFixed(1)+" "+ys[0].toFixed(1);
-  for(i=0;i<n-1;i++){
-    var p0x=(i===0)?xs[0]:xs[i-1], p0y=(i===0)?ys[0]:ys[i-1];
-    var p1x=xs[i], p1y=ys[i];
-    var p2x=xs[i+1], p2y=ys[i+1];
-    var p3x=(i+2<n)?xs[i+2]:xs[i+1], p3y=(i+2<n)?ys[i+2]:ys[i+1];
-    var c1x=p1x+(p2x-p0x)/6, c1y=p1y+(p2y-p0y)/6;
-    var c2x=p2x-(p3x-p1x)/6, c2y=p2y-(p3y-p1y)/6;
-    d += " C "+c1x.toFixed(1)+" "+c1y.toFixed(1)+", "+c2x.toFixed(1)+" "+c2y.toFixed(1)+", "+p2x.toFixed(1)+" "+p2y.toFixed(1);
-  }
-  return d;
-}
-function renderSpark(){
-  var el=$("spark"), pts=leadSeries();
-  var W=260, H=56, pad=6;
-  if(pts.length<2){
-    el.innerHTML='<line x1="'+pad+'" y1="'+(H/2)+'" x2="'+(W-pad)+'" y2="'+(H/2)+
-      '" style="stroke:var(--line);stroke-width:1"/>'+
-      '<text x="'+(W/2)+'" y="'+(H/2-6)+'" text-anchor="middle" '+
-      'style="fill:var(--ink-3);font-size:10px;letter-spacing:.1em">推移はまだありません</text>';
-    return;
-  }
-  /* コミ6.5だけで振り切れないよう、目盛りの下限は±10目にとる。
-     互いに1手ずつ打つと面積は交互に±1目動くので、細かいギザギザは
-     この余裕のなかに収まり、大きな流れだけが読み取れる。 */
-  var maxAbs=10, i;
-  for(i=0;i<pts.length;i++) maxAbs=Math.max(maxAbs, Math.abs(pts[i]));
-  var x=function(k){ return pad + k*(W-pad*2)/(pts.length-1); };
-  var y=function(v){ return H/2 - (v/maxAbs)*(H/2-pad); };
-
-  /* 生データは1手ごとに±1目でギザギザ動くため、移動平均を重ねて大きな流れを見せる。
-     推定値の配列そのもの（G.log／leadSeries）は変更せず、描画のときだけ均す。 */
-  var half = pts.length>=5 ? 2 : (pts.length>=3 ? 1 : 0);
-  var smooth = movingAverage(pts, half);
-  var xs=[], yRaw=[], ySmooth=[];
-  for(i=0;i<pts.length;i++){ xs.push(x(i)); yRaw.push(y(pts[i])); ySmooth.push(y(smooth[i])); }
-
-  var rawPath="M "+xs[0].toFixed(1)+" "+yRaw[0].toFixed(1);
-  for(i=1;i<xs.length;i++) rawPath += " L "+xs[i].toFixed(1)+" "+yRaw[i].toFixed(1);
-
-  var curve=smoothPath(xs, ySmooth);
-  var area=curve+" L "+xs[xs.length-1].toFixed(1)+" "+(H/2).toFixed(1)+
-           " L "+xs[0].toFixed(1)+" "+(H/2).toFixed(1)+" Z";
-
-  var midv=maxAbs/2, yMid1=y(midv).toFixed(1), yMid2=y(-midv).toFixed(1);
-  var last=pts[pts.length-1];
-  var lastX=xs[xs.length-1].toFixed(1), lastY=ySmooth[ySmooth.length-1].toFixed(1);
-
-  el.innerHTML=
-    /* 目盛り：中央（互角）と、その上下半目盛りをごく淡く */
-    '<line x1="'+pad+'" y1="'+yMid1+'" x2="'+(W-pad)+'" y2="'+yMid1+
-      '" style="stroke:var(--line);stroke-width:1;stroke-dasharray:1.5,3;opacity:.55"/>'+
-    '<line x1="'+pad+'" y1="'+yMid2+'" x2="'+(W-pad)+'" y2="'+yMid2+
-      '" style="stroke:var(--line);stroke-width:1;stroke-dasharray:1.5,3;opacity:.55"/>'+
-    '<line x1="'+pad+'" y1="'+(H/2)+'" x2="'+(W-pad)+'" y2="'+(H/2)+
-      '" style="stroke:var(--line);stroke-width:1"/>'+
-    /* 生データは背景にごく薄く残し、実測値としての手ざわりだけ伝える */
-    '<path d="'+rawPath+'" style="fill:none;stroke:var(--ink-3);stroke-width:1;opacity:.4;'+
-      'stroke-linejoin:round;stroke-linecap:round" vector-effect="non-scaling-stroke"/>'+
-    '<path d="'+area+'" style="fill:var(--ai);opacity:.08"/>'+
-    '<path d="'+curve+'" style="fill:none;stroke:var(--ai);stroke-width:2;'+
-      'stroke-linejoin:round;stroke-linecap:round" vector-effect="non-scaling-stroke"/>'+
-    '<circle cx="'+lastX+'" cy="'+lastY+'" r="2.8" style="fill:var(--ai)"/>';
-  el.setAttribute("aria-label",
-    "目数差の推移（移動平均）。現在 "+(last>=0?"黒":"白")+" "+Math.abs(last).toFixed(1)+"目リード");
 }
 
 /* ---- アタリ碁の進捗表示 ---- */
