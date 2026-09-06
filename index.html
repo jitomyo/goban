@@ -589,7 +589,7 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
     <div class="seal" aria-hidden="true">碁</div>
     <div class="titles">
       <h1>碁盤</h1>
-      <p class="sub">９路・13路・19路／ＡＩ対局</p>
+      <p class="sub">９路・13路・19路／CPU対局</p>
     </div>
     <div class="rule" id="rule-note">中国ルール（石＋地）<br>コミ 6目半</div>
   </header>
@@ -642,7 +642,7 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
           </div>
           <div class="prog">
             <span>あなた <b id="mis-you">0</b></span>
-            <span>ＡＩ <b id="mis-ai">0</b></span>
+            <span>CPU <b id="mis-ai">0</b></span>
           </div>
           <div class="pips" id="mis-pips"></div>
         </div>
@@ -662,7 +662,7 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
         </div>
         <div class="tally">
           <span>手数 <b id="movecount">0</b></span>
-          <span>ＡＩの強さ <b id="lvl-label">普通</b></span>
+          <span>CPUの強さ <b id="lvl-label">普通</b></span>
         </div>
       </div>
 
@@ -706,7 +706,7 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
         <div class="note" id="note-main">
           <div><b>数え方</b>　自分の石＋自分だけで囲んだ地。白にコミ6目半。</div>
           <div><b>死石</b>　自動判定はしません。終局前に実際に打ち上げてください。</div>
-          <div><b>待った</b>　自分の手番まで戻します（ＡＩの応手も取り消し）。</div>
+          <div><b>待った</b>　自分の手番まで戻します（CPUの応手も取り消し）。</div>
         </div>
       </div>
     </aside>
@@ -758,7 +758,7 @@ button.primary:hover:not(:disabled){background:var(--ai);filter:brightness(1.12)
     </div>
 
     <div class="field">
-      <p class="lbl">ＡＩの強さ</p>
+      <p class="lbl">CPUの強さ</p>
       <div class="seg">
         <input type="radio" name="lv" id="lve" value="easy"><label for="lve">弱い</label>
         <input type="radio" name="lv" id="lvn" value="normal" checked><label for="lvn">普通</label>
@@ -1106,7 +1106,7 @@ function endAtari(kind, winner){
   save(); render(); draw(); showClear();
 }
 function undo(){
-  if(thinking) return toast("ＡＩが考えています。少しお待ちください。");
+  if(thinking) return toast("CPUが考えています。少しお待ちください。");
   if(G.hist.length<2) return toast("戻せる手がありません。");
   var popped=0;
   while(G.hist.length>1){
@@ -1555,9 +1555,9 @@ function render(){
     $("hint-act").textContent="対局終了";
   }else{
     st.classList.remove("dim");
-    if(thinking){ note.textContent="ＡＩが考えています"; note.classList.add("think"); $("hint-act").textContent="ＡＩの手番"; }
+    if(thinking){ note.textContent="CPUが考えています"; note.classList.add("think"); $("hint-act").textContent="CPUの手番"; }
     else if(s.turn===G.human){ note.textContent="あなたの着手をお待ちします"; $("hint-act").textContent="交点をタップして着手"; }
-    else { note.textContent="ＡＩの手番です"; $("hint-act").textContent="ＡＩの手番"; }
+    else { note.textContent="CPUの手番です"; $("hint-act").textContent="CPUの手番"; }
   }
 
   var busy=G.ended||thinking;
@@ -1599,10 +1599,10 @@ function renderModeText(){
   $("note-main").innerHTML = atariMode
     ? '<div><b>勝ち方</b>　相手の石を先に'+G.goal+'つ取れば勝ちです。地の計算はしません。</div>'+
       '<div><b>取り方</b>　石のまわりの空点（呼吸点）をすべてふさぐと取れます。</div>'+
-      '<div><b>待った</b>　自分の手番まで戻します（ＡＩの応手も取り消し）。</div>'
+      '<div><b>待った</b>　自分の手番まで戻します（CPUの応手も取り消し）。</div>'
     : '<div><b>数え方</b>　自分の石＋自分だけで囲んだ地。白にコミ6目半。</div>'+
       '<div><b>死石</b>　自動判定はしません。終局前に実際に打ち上げてください。</div>'+
-      '<div><b>待った</b>　自分の手番まで戻します（ＡＩの応手も取り消し）。</div>';
+      '<div><b>待った</b>　自分の手番まで戻します（CPUの応手も取り消し）。</div>';
 }
 
 /* ---- 形勢（目数）表示 ---- */
@@ -1626,7 +1626,7 @@ function renderLead(){
     var side=(lead>0)?BLACK:WHITE;
     $("lead-now").textContent=(side===BLACK?"黒":"白")+" "+mag.toFixed(1)+"目リード";
     $("lead-side").textContent=s.leadOk
-      ? ((side===G.human)?"あなたが優勢":"ＡＩが優勢")
+      ? ((side===G.human)?"あなたが優勢":"CPUが優勢")
       : "コミのみ";
   }
 
@@ -1823,7 +1823,7 @@ function showClear(){
     badge.hidden=true;
   }else{
     $("clr-title").textContent="惜しかったですね";
-    $("clr-lead").textContent="ＡＩが先に石を"+goal+"つ取りました。";
+    $("clr-lead").textContent="CPUが先に石を"+goal+"つ取りました。";
     $("clr-foot").textContent="石は、まわりの空点（呼吸点）をすべてふさがれると取られます。呼吸点が1つになった石は、逃げるか、つないで守りましょう。";
     $("clr-next").hidden=true;
     badge.hidden=true;
